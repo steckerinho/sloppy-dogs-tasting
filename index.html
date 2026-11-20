@@ -55,6 +55,14 @@
   details{margin-top:6px} summary{cursor:pointer;color:var(--muted);font-size:13px}
   .comment{font-size:14px;margin:6px 0;padding-left:10px;border-left:3px solid var(--line)}
   .hidden{display:none}
+  .adm input[type=text]{padding:10px;font-size:15px}
+  .dogrow{display:grid;grid-template-columns:1fr 1.3fr;gap:8px;margin-bottom:8px}
+  .danger{background:var(--ketchup);color:#fff;padding:8px 12px;font-size:14px}
+  .btn-s{background:var(--mustard);color:#1a1410;padding:10px 14px;font-size:15px}
+  .switch{display:flex;align-items:center;gap:10px;font-weight:700}
+  .switch input{width:22px;height:22px;accent-color:var(--mustard)}
+  .person{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:16px 0 6px;font-weight:800}
+  .ritem{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
 </style>
 </head>
 <body>
@@ -87,6 +95,7 @@
     <div class="tabs">
       <button id="tabRate" class="on">Bewerten</button>
       <button id="tabResults">Ergebnisse</button>
+      <button id="tabAdmin" class="hidden">Admin</button>
     </div>
 
     <div id="ratePane">
@@ -113,6 +122,28 @@
         <div id="ranking"></div>
       </div>
     </div>
+
+    <div id="adminPane" class="hidden adm">
+      <div class="card">
+        <b>Rangliste</b>
+        <label class="switch" style="margin-top:10px"><input type="checkbox" id="revealToggle"> Ergebnisse für alle sichtbar</label>
+        <div id="revealMsg" class="msg"></div>
+      </div>
+      <div class="card">
+        <b>Sorten umbenennen</b>
+        <div style="height:10px"></div>
+        <div id="dogEditor"></div>
+        <button class="btn-s" id="saveDogs">Namen speichern</button>
+        <div id="dogMsg" class="msg"></div>
+      </div>
+      <div class="card">
+        <div class="row"><b>Bewertungen verwalten</b><span class="small" id="admCount"></span></div>
+        <div id="admList"></div>
+        <div style="height:14px"></div>
+        <button class="danger" id="deleteAll">Alle Bewertungen löschen</button>
+        <div id="admMsg" class="msg"></div>
+      </div>
+    </div>
   </section>
 
   <div id="setupHint" class="card hidden">
@@ -125,7 +156,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const C = window.TASTING_CONFIG;
 const $ = id => document.getElementById(id);
@@ -139,7 +170,7 @@ const app = initializeApp(C.firebase);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-let user = null, current = 0, myRatings = {}, allRatings = [], revealed = !C.hideResultsUntilReveal;
+let user = null, current = 0, myRatings = {}, allRatings = [], revealed = !C.hideResultsUntilReveal, isAdmin = false;
 const scores = {};
 
 if (!C.tastingCode) $("codeWrap").classList.add("hidden");
@@ -150,14 +181,19 @@ $("loginBtn").onclick = async () => {
   const name = $("name").value.trim();
   $("loginMsg").textContent = "";
   if (name.length < 2) { $("loginMsg").textContent = "Bitte gib deinen Namen ein."; return; }
-  if (C.tastingCode && $("code").value.trim() !== String(C.tastingCode)) {
-    $("loginMsg").textContent = "Der Code stimmt nicht."; return;
-  }
+  const code = $("code").value.trim();
+  const guestOk = !C.tastingCode || code === String(C.tastingCode);
   $("loginBtn").disabled = true;
   try {
-    localStorage.setItem("sd_name", name);
     const cred = await signInAnonymously(auth);
+    if (!guestOk) {
+      // Admin-Versuch: Code wird von den Firestore-Regeln geprüft
+      try { await setDoc(doc(db, "admins", cred.user.uid), { name, code }); }
+      catch { await signOut(auth); $("loginMsg").textContent = "Der Code stimmt nicht."; $("loginBtn").disabled = false; return; }
+    }
+    localStorage.setItem("sd_name", name);
     await setDoc(doc(db, "users", cred.user.uid), { name, ts: serverTimestamp() }, { merge: true });
+    await checkAdmin(); showApp();
   } catch (e) {
     $("loginMsg").textContent = "Login fehlgeschlagen: " + e.message;
   }
@@ -169,14 +205,24 @@ $("logoutBtn").onclick = async () => {
   await signOut(auth);
 };
 
+async function checkAdmin() {
+  try { isAdmin = !!user && (await getDoc(doc(db, "admins", user.uid))).exists(); } catch { isAdmin = false; }
+  $("tabAdmin").classList.toggle("hidden", !isAdmin);
+}
+
+function showApp() {
+  if (!user || !localStorage.getItem("sd_name")) return;
+  $("who").textContent = localStorage.getItem("sd_name") + (isAdmin ? " (Admin)" : "");
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+  startLive();
+}
+
 onAuthStateChanged(auth, async u => {
   user = u;
   if (!u || !localStorage.getItem("sd_name")) {
     $("login").classList.remove("hidden"); $("app").classList.add("hidden"); return;
   }
-  $("who").textContent = localStorage.getItem("sd_name");
-  $("login").classList.add("hidden"); $("app").classList.remove("hidden");
-  startLive();
+  await checkAdmin(); showApp();
 });
 
 /* ---------- Bewerten ---------- */
@@ -243,10 +289,17 @@ function startLive() {
     myRatings = {};
     allRatings.filter(r => r.uid === user?.uid).forEach(r => myRatings[r.dog] = r);
     if (before === 0 && Object.keys(myRatings).length) renderDog(); else renderDogTabs();
-    renderResults();
+    renderResults(); renderAdminList();
   });
   onSnapshot(doc(db, "settings", "main"), s => {
-    revealed = !C.hideResultsUntilReveal || !!s.data()?.revealed;
+    const st = s.data() || {};
+    revealed = typeof st.revealed === "boolean" ? st.revealed : !C.hideResultsUntilReveal;
+    if (Array.isArray(st.dogs)) {
+      C.dogs = C.dogs.map(d => ({ ...d, ...(st.dogs.find(x => x.id === d.id) || {}) }));
+      renderDog();
+    }
+    $("revealToggle").checked = revealed;
+    renderDogEditor();
     renderResults();
   });
   renderDog();
@@ -256,9 +309,10 @@ function avg(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 function renderResults() {
-  $("resultsLocked").classList.toggle("hidden", revealed);
-  $("resultsBox").classList.toggle("hidden", !revealed);
-  if (!revealed) return;
+  const show = revealed || isAdmin;
+  $("resultsLocked").classList.toggle("hidden", show);
+  $("resultsBox").classList.toggle("hidden", !show);
+  if (!show) return;
   $("voters").textContent = new Set(allRatings.map(r => r.uid)).size + " Tester";
   const rows = C.dogs.map(d => {
     const rs = allRatings.filter(r => r.dog === d.id);
@@ -281,11 +335,76 @@ function renderResults() {
     </div>`).join("");
 }
 
+/* ---------- Admin ---------- */
+function dogName(id) { return (C.dogs.find(d => d.id === id) || {}).name || id; }
+
+function renderDogEditor() {
+  if (!isAdmin || document.activeElement?.closest?.("#dogEditor")) return;
+  $("dogEditor").innerHTML = C.dogs.map(d => `
+    <div class="dogrow">
+      <input type="text" data-id="${d.id}" data-f="name" value="${esc(d.name)}" placeholder="Name">
+      <input type="text" data-id="${d.id}" data-f="desc" value="${esc(d.desc || "")}" placeholder="Beschreibung / Toppings">
+    </div>`).join("");
+}
+
+function renderAdminList() {
+  if (!isAdmin) return;
+  const people = {};
+  allRatings.forEach(r => (people[r.uid] ||= { name: r.name, items: [] }).items.push(r));
+  $("admCount").textContent = `${allRatings.length} Bewertungen · ${Object.keys(people).length} Personen`;
+  if (!allRatings.length) { $("admList").innerHTML = '<p class="small">Noch keine Bewertungen.</p>'; return; }
+  $("admList").innerHTML = Object.entries(people).map(([uid, p]) => `
+    <div class="person"><span>${esc(p.name)}</span><button class="ghost" data-delperson="${uid}">Alle löschen</button></div>
+    ${p.items.map(r => `<div class="ritem"><span><b>${esc(dogName(r.dog))}</b> · ${C.criteria.map(c => r.scores?.[c.id] ?? "–").join(" / ")}
+      ${r.comment ? `<br><span class="small">${esc(r.comment)}</span>` : ""}</span>
+      <button class="danger" data-del="${r.uid}_${r.dog}">Löschen</button></div>`).join("")}`).join("");
+}
+
+async function delRatings(ids) {
+  try {
+    await Promise.all(ids.map(id => deleteDoc(doc(db, "ratings", id))));
+    $("admMsg").className = "msg"; $("admMsg").textContent = `${ids.length} gelöscht ✓`;
+  } catch (e) { $("admMsg").className = "msg err"; $("admMsg").textContent = "Fehler: " + e.message; }
+}
+
+$("admList").onclick = e => {
+  const one = e.target.dataset.del, person = e.target.dataset.delperson;
+  if (one) { const r = allRatings.find(x => `${x.uid}_${x.dog}` === one);
+    if (confirm(`Bewertung von ${r.name} für „${dogName(r.dog)}“ löschen?`)) delRatings([one]); }
+  if (person) { const items = allRatings.filter(x => x.uid === person);
+    if (confirm(`Alle ${items.length} Bewertungen von ${items[0].name} löschen?`)) delRatings(items.map(x => `${x.uid}_${x.dog}`)); }
+};
+
+$("deleteAll").onclick = () => {
+  if (!allRatings.length) return;
+  if (confirm(`Wirklich ALLE ${allRatings.length} Bewertungen löschen? Das kann man nicht rückgängig machen.`))
+    delRatings(allRatings.map(x => `${x.uid}_${x.dog}`));
+};
+
+$("revealToggle").onchange = async e => {
+  try {
+    await setDoc(doc(db, "settings", "main"), { revealed: e.target.checked }, { merge: true });
+    $("revealMsg").className = "msg"; $("revealMsg").textContent = e.target.checked ? "Rangliste ist für alle sichtbar ✓" : "Rangliste ist versteckt ✓";
+  } catch (err) { $("revealMsg").className = "msg err"; $("revealMsg").textContent = "Fehler: " + err.message; }
+};
+
+$("saveDogs").onclick = async () => {
+  const out = C.dogs.map(d => ({ id: d.id,
+    name: document.querySelector(`#dogEditor [data-id="${d.id}"][data-f="name"]`).value.trim() || d.name,
+    desc: document.querySelector(`#dogEditor [data-id="${d.id}"][data-f="desc"]`).value.trim() }));
+  try {
+    document.activeElement?.blur?.();
+    await setDoc(doc(db, "settings", "main"), { dogs: out }, { merge: true });
+    $("dogMsg").className = "msg"; $("dogMsg").textContent = "Gespeichert ✓ – alle sehen die neuen Namen sofort.";
+  } catch (e) { $("dogMsg").className = "msg err"; $("dogMsg").textContent = "Fehler: " + e.message; }
+};
+
 /* ---------- Tabs ---------- */
-$("tabRate").onclick = () => { $("tabRate").classList.add("on"); $("tabResults").classList.remove("on");
-  $("ratePane").classList.remove("hidden"); $("resultsPane").classList.add("hidden"); };
-$("tabResults").onclick = () => { $("tabResults").classList.add("on"); $("tabRate").classList.remove("on");
-  $("resultsPane").classList.remove("hidden"); $("ratePane").classList.add("hidden"); };
+const panes = { tabRate: "ratePane", tabResults: "resultsPane", tabAdmin: "adminPane" };
+Object.keys(panes).forEach(t => $(t).onclick = () => {
+  Object.entries(panes).forEach(([tt, p]) => { $(tt).classList.toggle("on", tt === t); $(p).classList.toggle("hidden", tt !== t); });
+  if (t === "tabAdmin") { renderDogEditor(); renderAdminList(); }
+});
 </script>
 </body>
 </html>
