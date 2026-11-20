@@ -22,11 +22,11 @@ window.TASTING_CONFIG = {
 
   // 4) Eure Sorten – Namen und Beschreibung anpassen, id nicht mehr ändern, sobald bewertet wird
   dogs: [
-    { id: "dog1", name: "Sorte 1", desc: "" },
-    { id: "dog2", name: "Sorte 2", desc: "" },
-    { id: "dog3", name: "Sorte 3", desc: "" },
-    { id: "dog4", name: "Sorte 4", desc: "" },
-    { id: "dog5", name: "Sorte 5 (Spicy)", desc: "Scharf, soßig, mit Käse" }
+    { id: "dog1", name: "Cheesy Lover", desc: "" },
+    { id: "dog2", name: "Hot Mess", desc: "Spicy, soßig, mit Käse" },
+    { id: "dog3", name: "The Classic", desc: "" },
+    { id: "dog4", name: "BBQ Boss", desc: "" },
+    { id: "dog5", name: "Big Bro", desc: "" }
   ],
 
   // 5) Bewertungskriterien (jeweils 1–10)
