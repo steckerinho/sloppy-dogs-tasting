@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Jeder eingeloggte Gast darf alle Bewertungen lesen,
+    // aber nur seine eigenen anlegen/ändern.
+    match /ratings/{ratingId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && ratingId.matches(request.auth.uid + '_.*');
+      allow delete: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Freigabe der Rangliste – nur über die Firebase-Konsole änderbar
+    match /settings/{doc} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}
