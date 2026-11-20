@@ -95,7 +95,7 @@
     <div class="tabs">
       <button id="tabRate" class="on">Bewerten</button>
       <button id="tabResults">Ergebnisse</button>
-      <button id="tabAdmin" class="hidden">Admin</button>
+      <button id="tabAdmin" class="hidden" aria-label="Einstellungen" style="flex:0 0 auto">⚙︎</button>
     </div>
 
     <div id="ratePane">
@@ -212,7 +212,7 @@ async function checkAdmin() {
 
 function showApp() {
   if (!user || !localStorage.getItem("sd_name")) return;
-  $("who").textContent = localStorage.getItem("sd_name") + (isAdmin ? " (Admin)" : "");
+  $("who").textContent = localStorage.getItem("sd_name");
   $("login").classList.add("hidden"); $("app").classList.remove("hidden");
   startLive();
 }
