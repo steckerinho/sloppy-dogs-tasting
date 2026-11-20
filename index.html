@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sloppy Dogs – Tasting</title>
+<meta name="theme-color" content="#1a1410">
+<style>
+  :root{
+    --bg:#1a1410; --card:#251c16; --line:#3a2c22; --text:#f6eee6; --muted:#b7a596;
+    --mustard:#f2b705; --ketchup:#d7263d; --ok:#4caf50;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);
+       padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  header{padding:22px 18px 10px;text-align:center}
+  h1{margin:0;font-size:30px;letter-spacing:.5px}
+  h1 span{color:var(--mustard)}
+  .sub{color:var(--muted);margin-top:4px;font-size:14px}
+  main{max-width:560px;margin:0 auto;padding:10px 14px 60px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+  label{display:block;font-size:14px;color:var(--muted);margin:10px 0 6px}
+  input[type=text],input[type=password],textarea{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);
+       background:#120e0b;color:var(--text);font-size:16px}
+  textarea{min-height:70px;resize:vertical}
+  button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:13px 16px;font-weight:700;font-size:16px}
+  .btn{background:var(--mustard);color:#1a1410;width:100%}
+  .btn:disabled{opacity:.5}
+  .ghost{background:transparent;color:var(--muted);border:1px solid var(--line);padding:8px 12px;font-size:14px}
+  .tabs{display:flex;gap:8px;margin:6px 0 4px}
+  .tabs button{flex:1;background:var(--card);color:var(--muted);border:1px solid var(--line)}
+  .tabs button.on{background:var(--ketchup);color:#fff;border-color:var(--ketchup)}
+  .dogs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .dogs button{white-space:nowrap;background:var(--card);color:var(--text);border:1px solid var(--line);font-size:14px;padding:10px 12px}
+  .dogs button.on{border-color:var(--mustard);color:var(--mustard)}
+  .dogs button.done::after{content:" ✓";color:var(--ok)}
+  .dogname{font-size:22px;font-weight:800;margin:0 0 2px}
+  .dogdesc{color:var(--muted);font-size:14px;margin:0 0 6px}
+  .crit{margin:14px 0}
+  .crit-head{display:flex;justify-content:space-between;align-items:baseline}
+  .crit-head b{font-size:16px}
+  .val{font-size:22px;font-weight:800;color:var(--mustard);min-width:2ch;text-align:right}
+  input[type=range]{width:100%;accent-color:var(--mustard);height:32px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .msg{font-size:14px;margin-top:10px;min-height:1em;color:var(--ok)}
+  .err{color:#ff7a7a}
+  .rank{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .rank:last-child{border-bottom:0}
+  .pos{font-size:24px;font-weight:900;width:34px;text-align:center;color:var(--mustard)}
+  .rank .info{flex:1}
+  .bar{height:8px;background:#120e0b;border-radius:6px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ketchup),var(--mustard))}
+  .score{font-size:24px;font-weight:900}
+  .small{font-size:13px;color:var(--muted)}
+  details{margin-top:6px} summary{cursor:pointer;color:var(--muted);font-size:13px}
+  .comment{font-size:14px;margin:6px 0;padding-left:10px;border-left:3px solid var(--line)}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌭 <span>Sloppy Dogs</span> Tasting</h1>
+  <div class="sub">Food Bros · Bewerte jede Sorte</div>
+</header>
+
+<main>
+  <!-- LOGIN -->
+  <section id="login" class="card hidden">
+    <h2 style="margin-top:0">Einloggen</h2>
+    <label for="name">Dein Name</label>
+    <input id="name" type="text" autocomplete="nickname" placeholder="z. B. Hendrik" maxlength="30">
+    <div id="codeWrap">
+      <label for="code">Tasting-Code</label>
+      <input id="code" type="password" inputmode="numeric" placeholder="Code vom Gastgeber">
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn" id="loginBtn">Los geht's</button>
+    <div id="loginMsg" class="msg err"></div>
+  </section>
+
+  <!-- APP -->
+  <section id="app" class="hidden">
+    <div class="row">
+      <div class="small">Eingeloggt als <b id="who"></b></div>
+      <button class="ghost" id="logoutBtn">Abmelden</button>
+    </div>
+    <div class="tabs">
+      <button id="tabRate" class="on">Bewerten</button>
+      <button id="tabResults">Ergebnisse</button>
+    </div>
+
+    <div id="ratePane">
+      <div class="dogs" id="dogTabs"></div>
+      <div class="card">
+        <p class="dogname" id="dogName"></p>
+        <p class="dogdesc" id="dogDesc"></p>
+        <div id="crits"></div>
+        <label for="comment">Kommentar (optional)</label>
+        <textarea id="comment" maxlength="400" placeholder="Was war top, was fehlt?"></textarea>
+        <div style="height:12px"></div>
+        <button class="btn" id="saveBtn">Bewertung speichern</button>
+        <div id="saveMsg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="resultsPane" class="hidden">
+      <div class="card" id="resultsLocked">
+        <b>Ergebnisse sind noch versteckt 🤫</b>
+        <p class="small">Die Rangliste wird freigeschaltet, sobald der Gastgeber sie aufdeckt.</p>
+      </div>
+      <div class="card hidden" id="resultsBox">
+        <div class="row"><b>Rangliste</b><span class="small" id="voters"></span></div>
+        <div id="ranking"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="setupHint" class="card hidden">
+    <b>Firebase ist noch nicht eingerichtet.</b>
+    <p class="small">Trage oben in <code>config.js</code> deine Firebase-Daten ein (siehe README).</p>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const C = window.TASTING_CONFIG;
+const $ = id => document.getElementById(id);
+
+if (!C || !C.firebase || String(C.firebase.apiKey).startsWith("HIER")) {
+  $("setupHint").classList.remove("hidden");
+  throw new Error("Firebase-Konfiguration fehlt");
+}
+
+const app = initializeApp(C.firebase);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let user = null, current = 0, myRatings = {}, allRatings = [], revealed = !C.hideResultsUntilReveal;
+const scores = {};
+
+if (!C.tastingCode) $("codeWrap").classList.add("hidden");
+$("name").value = localStorage.getItem("sd_name") || "";
+
+/* ---------- Login ---------- */
+$("loginBtn").onclick = async () => {
+  const name = $("name").value.trim();
+  $("loginMsg").textContent = "";
+  if (name.length < 2) { $("loginMsg").textContent = "Bitte gib deinen Namen ein."; return; }
+  if (C.tastingCode && $("code").value.trim() !== String(C.tastingCode)) {
+    $("loginMsg").textContent = "Der Code stimmt nicht."; return;
+  }
+  $("loginBtn").disabled = true;
+  try {
+    localStorage.setItem("sd_name", name);
+    const cred = await signInAnonymously(auth);
+    await setDoc(doc(db, "users", cred.user.uid), { name, ts: serverTimestamp() }, { merge: true });
+  } catch (e) {
+    $("loginMsg").textContent = "Login fehlgeschlagen: " + e.message;
+  }
+  $("loginBtn").disabled = false;
+};
+
+$("logoutBtn").onclick = async () => {
+  if (!confirm("Abmelden? Deine Bewertungen bleiben gespeichert, aber auf diesem Handy kommst du danach nicht mehr dran.")) return;
+  await signOut(auth);
+};
+
+onAuthStateChanged(auth, async u => {
+  user = u;
+  if (!u || !localStorage.getItem("sd_name")) {
+    $("login").classList.remove("hidden"); $("app").classList.add("hidden"); return;
+  }
+  $("who").textContent = localStorage.getItem("sd_name");
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+  startLive();
+});
+
+/* ---------- Bewerten ---------- */
+function renderDogTabs() {
+  $("dogTabs").innerHTML = "";
+  C.dogs.forEach((d, i) => {
+    const b = document.createElement("button");
+    b.textContent = d.name;
+    if (i === current) b.classList.add("on");
+    if (myRatings[d.id]) b.classList.add("done");
+    b.onclick = () => { current = i; renderDog(); };
+    $("dogTabs").appendChild(b);
+  });
+}
+
+function renderDog() {
+  const d = C.dogs[current];
+  const saved = myRatings[d.id];
+  $("dogName").textContent = d.name;
+  $("dogDesc").textContent = d.desc || "";
+  $("crits").innerHTML = "";
+  C.criteria.forEach(c => {
+    const v = saved?.scores?.[c.id] ?? 5;
+    scores[c.id] = v;
+    const wrap = document.createElement("div");
+    wrap.className = "crit";
+    wrap.innerHTML = `<div class="crit-head"><b>${c.label}</b><span class="val">${v}</span></div>
+      <input type="range" min="1" max="10" step="1" value="${v}" aria-label="${c.label}">`;
+    const r = wrap.querySelector("input"), out = wrap.querySelector(".val");
+    r.oninput = () => { out.textContent = r.value; scores[c.id] = +r.value; };
+    $("crits").appendChild(wrap);
+  });
+  $("comment").value = saved?.comment || "";
+  $("saveMsg").textContent = saved ? "Schon bewertet – du kannst es noch ändern." : "";
+  $("saveBtn").textContent = saved ? "Bewertung aktualisieren" : "Bewertung speichern";
+  renderDogTabs();
+}
+
+$("saveBtn").onclick = async () => {
+  const d = C.dogs[current];
+  $("saveBtn").disabled = true;
+  try {
+    await setDoc(doc(db, "ratings", `${user.uid}_${d.id}`), {
+      uid: user.uid, name: localStorage.getItem("sd_name"), dog: d.id,
+      scores: { ...scores }, comment: $("comment").value.trim(), ts: serverTimestamp()
+    });
+    $("saveMsg").className = "msg"; $("saveMsg").textContent = "Gespeichert ✓";
+    const next = C.dogs.findIndex((x, i) => i > current && !myRatings[x.id]);
+    if (next >= 0) setTimeout(() => { current = next; renderDog(); window.scrollTo({top:0,behavior:"smooth"}); }, 700);
+  } catch (e) {
+    $("saveMsg").className = "msg err"; $("saveMsg").textContent = "Fehler: " + e.message;
+  }
+  $("saveBtn").disabled = false;
+};
+
+/* ---------- Live-Daten & Ergebnisse ---------- */
+let live = false;
+function startLive() {
+  if (live) { renderDog(); return; }
+  live = true;
+  onSnapshot(collection(db, "ratings"), snap => {
+    allRatings = snap.docs.map(x => x.data());
+    const before = Object.keys(myRatings).length;
+    myRatings = {};
+    allRatings.filter(r => r.uid === user?.uid).forEach(r => myRatings[r.dog] = r);
+    if (before === 0 && Object.keys(myRatings).length) renderDog(); else renderDogTabs();
+    renderResults();
+  });
+  onSnapshot(doc(db, "settings", "main"), s => {
+    revealed = !C.hideResultsUntilReveal || !!s.data()?.revealed;
+    renderResults();
+  });
+  renderDog();
+}
+
+function avg(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function renderResults() {
+  $("resultsLocked").classList.toggle("hidden", revealed);
+  $("resultsBox").classList.toggle("hidden", !revealed);
+  if (!revealed) return;
+  $("voters").textContent = new Set(allRatings.map(r => r.uid)).size + " Tester";
+  const rows = C.dogs.map(d => {
+    const rs = allRatings.filter(r => r.dog === d.id);
+    const per = {};
+    C.criteria.forEach(c => per[c.id] = avg(rs.map(r => r.scores?.[c.id]).filter(Number.isFinite)));
+    const total = avg(C.criteria.map(c => per[c.id]).filter(v => v > 0));
+    return { d, rs, per, total };
+  }).sort((a, b) => b.total - a.total);
+
+  $("ranking").innerHTML = rows.map((r, i) => `
+    <div class="rank">
+      <div class="pos">${r.rs.length ? ["🥇","🥈","🥉"][i] || i + 1 : "–"}</div>
+      <div class="info">
+        <div class="row"><b>${esc(r.d.name)}</b><span class="score">${r.rs.length ? r.total.toFixed(1) : "–"}</span></div>
+        <div class="bar"><i style="width:${r.total * 10}%"></i></div>
+        <div class="small">${r.rs.length} Bewertung${r.rs.length === 1 ? "" : "en"} · ${C.criteria.map(c => `${c.label} ${r.per[c.id] ? r.per[c.id].toFixed(1) : "–"}`).join(" · ")}</div>
+        ${r.rs.some(x => x.comment) ? `<details><summary>Kommentare</summary>${
+          r.rs.filter(x => x.comment).map(x => `<div class="comment"><b>${esc(x.name)}:</b> ${esc(x.comment)}</div>`).join("")}</details>` : ""}
+      </div>
+    </div>`).join("");
+}
+
+/* ---------- Tabs ---------- */
+$("tabRate").onclick = () => { $("tabRate").classList.add("on"); $("tabResults").classList.remove("on");
+  $("ratePane").classList.remove("hidden"); $("resultsPane").classList.add("hidden"); };
+$("tabResults").onclick = () => { $("tabResults").classList.add("on"); $("tabRate").classList.remove("on");
+  $("resultsPane").classList.remove("hidden"); $("ratePane").classList.add("hidden"); };
+</script>
+</body>
+</html>
