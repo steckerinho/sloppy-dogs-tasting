@@ -2,25 +2,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Admin wird, wer beim Login Name + Admin-Code richtig eingibt.
+    // Der Code wird nur hier (serverseitig) geprüft.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.name.lower() == 'daniel'
+        && request.resource.data.code == 'XXXX'; // echter Code steht nur in der Firebase-Konsole
+    }
+
     // Jeder eingeloggte Gast darf alle Bewertungen lesen,
-    // aber nur seine eigenen anlegen/ändern.
+    // aber nur seine eigenen anlegen/ändern. Löschen nur Admin.
     match /ratings/{ratingId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && ratingId.matches(request.auth.uid + '_.*');
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     match /users/{uid} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == uid;
+      allow delete: if isAdmin();
     }
 
-    // Freigabe der Rangliste – nur über die Firebase-Konsole änderbar
+    // Sortennamen & Freigabe der Rangliste – nur Admin
     match /settings/{doc} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if isAdmin();
     }
   }
 }
